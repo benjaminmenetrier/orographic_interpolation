@@ -1,0 +1,199 @@
+\documentclass[12pt]{scrartcl}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsbsy}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{bm}
+\usepackage{verbatim}
+\usepackage[english]{babel}
+\usepackage{color}
+\usepackage{url}
+\usepackage{fancybox}
+\usepackage[stable]{footmisc}
+\usepackage[format=plain,labelfont=bf]{caption}
+\usepackage{fancyhdr}
+\usepackage{natbib}
+\usepackage{calc}
+\usepackage{textcomp}
+\usepackage[pdftex,pdfborder={0 0 0}]{hyperref}
+\usepackage{pdfpages}
+\usepackage{tikz}
+\usetikzlibrary{shapes,backgrounds,fit,positioning,arrows,positioning,decorations.pathmorphing,decorations.pathreplacing,backgrounds}
+\usepackage{accents}
+
+\renewcommand*{\familydefault}{\sfdefault}
+
+% Margins
+\addtolength{\textheight}{1.0cm}
+\addtolength{\oddsidemargin}{-0.5cm}
+\addtolength{\evensidemargin}{-0.5cm}
+\addtolength{\textwidth}{1.0cm}
+\parindent=0em
+
+% Appropriate font for \mathcal{}
+\DeclareSymbolFont{cmmathcal}{OMS}{cmsy}{m}{n}
+\DeclareSymbolFontAlphabet{\mathcal}{cmmathcal}
+
+% Set subscript and superscripts positions
+\everymath{
+\fontdimen13\textfont2=5pt
+\fontdimen14\textfont2=5pt
+\fontdimen15\textfont2=5pt
+\fontdimen16\textfont2=5pt
+\fontdimen17\textfont2=5pt
+}
+
+% Bibliography style
+\setlength{\bibsep}{1pt}
+
+% Part
+\renewcommand\partheadstartvskip{\clearpage\null\vfil}
+\renewcommand\partheadmidvskip{\par\nobreak\vskip 20pt\thispagestyle{empty}}
+\renewcommand\partheadendvskip{\vfil\clearpage}
+\renewcommand\raggedpart{\centering}
+
+\begin{document}
+\title{Orographic interpolation}
+\author{Benjamin Ménétrier}
+\date{Last update: \today}
+
+\thispagestyle{empty}
+
+\maketitle
+
+\section{3D variables}
+
+\subsection{Vertical discretization}
+
+The vertical levels is built with:
+\begin{itemize}
+\item Half-levels top-down from 0 to $n_z$
+\item Full-levels top-down from 0 to $n_z-1$
+\end{itemize}
+
+The surface pressure $P_s$ is defined at the last half-level ($n_z$). Hybrid coefficients $a_k$ and $b_k$ are defined at half-levels, to compute the pressure at half-levels:
+\begin{align}
+P^h_k = a_k + b_k P_s
+\end{align}
+A full-levels, the temperature $T^f_k$ is known, and the pressure $P^f_k$ is given by:
+\begin{align}
+P^f_k = \frac{P^h_k + P^h_{k+1}}{2}
+\end{align}
+
+\subsection{Height calculation}
+
+The hydrostatic equation is:
+\begin{align}
+\frac{\partial P}{\partial z} = -\rho g
+\end{align}
+where:
+\begin{itemize}
+\item $\rho$ is the density
+\item $g$ is the gravitational acceleration
+\end{itemize}
+and the ideal gas equation is:
+\begin{align}
+P = \rho R^\star T
+\end{align}
+where $R^\star$ is the specific gas constant for air. Combining them, we get:
+\begin{align}
+\label{eq:vertical}
+\frac{\partial P}{\partial z} = -\frac{Pg}{R^\star T}
+\end{align}
+which can be discretized into:
+\begin{align}
+\delta z =  -\frac{R^\star T}{Pg} \delta P
+\end{align}
+Integrating this equation upward from the surface, we get iteratively the altitude for each half-level, starting with $z^h_{n_z} = z_s$:
+\begin{align}
+z^h_{k-1} = z^h_k - \frac{R^\star T^f_{k-1}}{P^f_{k-1} g} \left(P^h_{k-1}-P^h_k\right)
+\end{align}
+The height at full-levels is approximated by:
+\begin{align}
+z^f_k = \frac{z^h_{k+1} + z^h_k}{2}
+\end{align}
+which is slightly inconsistent with the pressure at full levels.
+
+\subsection{Constant height coordinate}
+
+The constant height coordinate is defined by:
+\begin{itemize}
+\item the constant height surface: $\overline{z}_s = \min(z_s)$
+\item the constant height full-levels:
+\begin{align}
+\overline{z}^f_k = \alpha_k \min(z^f_k) + (1-\alpha_k) \max(z^f_k)
+\end{align}
+where $\alpha_k$ increases linearly from $\alpha_0 = 0$ to $\alpha_{n_z-1} = 1$.
+\end{itemize}
+The $n_s$ constant half-levels are defined as:
+\begin{subequations}
+\begin{align}
+\overline{z}^h_{n_s} & = \overline{z}_s \\
+\overline{z}^h_k & = \frac{\overline{z}^f_k+\overline{z}^f_{k-1}}{2} \text{ for } 0 < k < n_s \\
+\overline{z}^h_0 & = 2 \overline{z}^f_0-\overline{z}^h_{1}
+\end{align}
+\end{subequations}
+
+\section{Surface pressure}
+
+\subsection{Balanced increment}
+
+Equation \eqref{eq:vertical} can be expressed as:
+\begin{align}
+\label{eq:vertical_log}
+\frac{\partial \log P}{\partial z} = -\frac{g}{R^\star T}
+\end{align}
+which can be integrated from the constant height surface:
+\begin{align}
+\log P(z) = \log P(\overline{z}_s) - \int_{\overline{z}_s}^{z} \frac{g}{R^\star T(z')} d z'
+\end{align}
+If the values of $\log P(\overline{z}_s)$ and $T(z')$ are perturbed with small perturbations $\delta \log P(\overline{z}_s)$ and $\delta T(z')$, then the resulting perturbation on $\log P(z)$ is:
+\begin{align}
+\delta \log P(z) & = \left(\log P(\overline{z}_s) + \delta \log P(\overline{z}_s)\right) - \int_{\overline{z}_s}^{z} \frac{g}{R^\star \left(T(z')+\delta T(z')\right)} d z' - \log P(z) \nonumber \\
+& = \delta \log P(\overline{z}_s) - \int_{\overline{z}_s}^{z} \frac{g}{R^\star} \left(\frac{1}{\left(T(z')+\delta T(z')\right)} - \frac{1}{T(z')}\right) d z'
+\end{align}
+Assuming that the temperature perturbation is small enough $\delta T(z') \ll T(z')$, then a first-order approximation yields:
+\begin{align}
+\frac{1}{\left(T(z')+\delta T(z')\right)} - \frac{1}{T(z')} & = \frac{1}{T(z')} \left(\frac{1}{1 + \frac{\delta T(z')}{T(z')}}-1\right) \nonumber \\
+ & \simeq -\frac{1}{T(z')} \frac{\delta T(z')}{T(z')} \nonumber \\
+& \simeq -\frac{\delta T(z')}{T^2(z')}
+\end{align}
+Thus:
+\begin{align}
+\delta \log P(z) & \simeq \delta \log P(\overline{z}_s) + \int_{\overline{z}_s}^{z} \frac{g}{R^\star T^2(z')} \delta T(z') d z'
+\end{align}
+The integration be can discretized on constant half-levels:
+\begin{align}
+\delta \log \overline{P}^h_{k} \simeq \delta \log \overline{P}_s + \sum_{k'=k}^{n_s-1} \frac{g}{R^\star \overline{T}^{f2}_{k'}} \left(\overline{z}^h_{k'} - \overline{z}^h_{k'+1}\right) \delta \overline{T}^f_{k'}
+\end{align}
+
+
+\subsection{Interpolation extrapolation}
+
+Assuming a constant lapse rate, the temperature relationship is given by:
+\begin{align}
+T_2 = T_1-L \left(z_2-z_1\right)
+\end{align}
+where:
+\begin{itemize}
+\item $T_1$ and $T_2$ are the temperatures at altitude $z_1$ and $z_2$
+\item $L$ is the constant lapse rate
+\end{itemize}
+
+Thus, the temperature at constant height full-levels below orography can be computed from the lowest model level:
+\begin{align}
+\overline{T}^f_k = T^f_{n_z-1} - L \left(\overline{z}^f_k - z^f_{n_z-1}\right)
+\end{align}
+
+%\bibliographystyle{mybib-en}
+%\bibliography{orographic_interpolation}
+
+\end{document}
